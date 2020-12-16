@@ -1,5 +1,5 @@
-org: devin
-app: lighthouse-form
+org: ilgizgilmanov
+app: backend-app
 service: backend
 
 provider:
@@ -8,7 +8,7 @@ provider:
   region: us-east-2
   environment:
     DB_HOST: localhost
-    DB_USERNAME: root
+    DB_USERNAME: root #
     DB_PASSWORD: password
   vpc:
     securityGroupIds:
@@ -20,6 +20,8 @@ provider:
       - subnet-c71756ea
       - subnet-2a117c26
       - subnet-dfeb94ba
+  apiGateway:
+    shouldStartNameWithService: true
 
 functions:
   user_login:
@@ -63,5 +65,5 @@ functions:
           cors: true
 
 plugins:
-  - serverless-plugin-typescript
   - serverless-offline
+  - serverless-plugin-typescript

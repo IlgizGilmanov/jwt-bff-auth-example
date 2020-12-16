@@ -1,25 +1,44 @@
-import { APIGatewayProxyEvent, Context } from 'aws-lambda'
-import { Connection } from 'typeorm'
-import * as bcrypt from 'bcrypt';
-import * as jwt from 'jsonwebtoken';
-import * as cookie from 'cookie';
+import { APIGatewayProxyEvent, Context } from "aws-lambda";
+import { Connection } from "typeorm";
+import * as bcrypt from "bcrypt";
+import * as jwt from "jsonwebtoken";
+import * as cookie from "cookie";
 
-import { Database } from '../db'
-import { User } from '../entities/User';
+import { Database } from "../db";
+import { User } from "../entities/User";
 
 const saltRounds = 10;
-const SECRET_KEY = process.env.SECRET_KEY || 'mysecret';
+const SECRET_KEY = process.env.SECRET_KEY || "mysecret";
 const ERROR_RESPONSES = {
-  MISSING_CREDENTIALS: { statusCode: 401, body: JSON.stringify({ message: 'Please include username and password' })},
-  INVALID_TOKEN: { statusCode: 401, body: JSON.stringify({ message: 'invalid token' })},
-  INVALID_CREDENTIALS: { statusCode: 401, body: JSON.stringify({ message: 'Please include username and password' })},
-  INVALID_SESSION: { statusCode: 401, body: JSON.stringify({ message: 'session no longer valid'})},
-}
-const generateAccessToken = (user: User) =>  jwt.sign({ id: user.id, access: true }, SECRET_KEY, { expiresIn: '15m' });
-const generateRefreshToken = (user: User) => jwt.sign({ id: user.id, refresh: true }, SECRET_KEY, { expiresIn: '7d' });
+  MISSING_CREDENTIALS: {
+    statusCode: 401,
+    body: JSON.stringify({ message: "Please include username and password" }),
+  },
+  INVALID_TOKEN: {
+    statusCode: 401,
+    body: JSON.stringify({ message: "invalid token" }),
+  },
+  INVALID_CREDENTIALS: {
+    statusCode: 401,
+    body: JSON.stringify({ message: "Invalid credentials" }),
+  },
+  INVALID_SESSION: {
+    statusCode: 401,
+    body: JSON.stringify({ message: "session no longer valid" }),
+  },
+};
+const generateAccessToken = (user: User) =>
+  jwt.sign({ id: user.id, access: true }, SECRET_KEY, { expiresIn: "15m" });
+const generateRefreshToken = (user: User) =>
+  jwt.sign({ id: user.id, refresh: true }, SECRET_KEY, { expiresIn: "7d" });
 
-module.exports.signup = async (event: APIGatewayProxyEvent, context: Context) => {
-  context.callbackWaitsForEmptyEventLoop = false
+module.exports.signup = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+) => {
+  context.callbackWaitsForEmptyEventLoop = false;
+
+  console.log("event.body", event.body);
 
   if (!event.body) return ERROR_RESPONSES.MISSING_CREDENTIALS;
 
@@ -47,22 +66,27 @@ module.exports.signup = async (event: APIGatewayProxyEvent, context: Context) =>
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
-        'Set-Cookie': cookie.serialize('refreshToken', refreshToken, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": true,
+        "Set-Cookie": cookie.serialize("refreshToken", refreshToken, {
           httpOnly: true,
           maxAge: 60 * 60 * 24 * 7, // 7 days
         }),
       },
       body: JSON.stringify({ user, accessToken }),
-    }
+    };
   } catch (e) {
     return { statusCode: 409, body: JSON.stringify({ message: e.message }) };
   }
-}
+};
 
-module.exports.login = async (event: APIGatewayProxyEvent, context: Context) => {
+module.exports.login = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+) => {
   context.callbackWaitsForEmptyEventLoop = false;
+
+  console.log("event.body", event.body);
 
   if (!event.body) return ERROR_RESPONSES.MISSING_CREDENTIALS;
 
@@ -76,7 +100,6 @@ module.exports.login = async (event: APIGatewayProxyEvent, context: Context) => 
     const user = await userRepo.findOneOrFail({ username: username });
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
 
-
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
@@ -85,28 +108,32 @@ module.exports.login = async (event: APIGatewayProxyEvent, context: Context) => 
     delete user.passwordHash;
     delete user.refreshToken;
 
-    if (!passwordMatch) throw 'Invalid username/password combination';
+    if (!passwordMatch) throw "Invalid username/password combination";
 
-    return { 
+    return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
-        'Set-Cookie': cookie.serialize('refreshToken', refreshToken, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": true,
+        "Set-Cookie": cookie.serialize("refreshToken", refreshToken, {
           httpOnly: true,
           maxAge: 60 * 60 * 24 * 7, // 7 days
           sameSite: true,
-          path: '/',
+          path: "/",
         }),
       },
       body: JSON.stringify({ accessToken, user }),
     };
   } catch (e) {
+    console.log("error", e);
     return ERROR_RESPONSES.INVALID_CREDENTIALS;
   }
-}
+};
 
-module.exports.refresh = async (event: APIGatewayProxyEvent, context: Context) => {
+module.exports.refresh = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+) => {
   context.callbackWaitsForEmptyEventLoop = false;
 
   if (!event.headers.cookie) return ERROR_RESPONSES.INVALID_SESSION;
@@ -114,21 +141,25 @@ module.exports.refresh = async (event: APIGatewayProxyEvent, context: Context) =
   const { refreshToken } = cookie.parse(event.headers.cookie);
   if (!refreshToken) return ERROR_RESPONSES.INVALID_SESSION;
 
-
   const database = new Database();
   let db: Connection = await database.getConnection();
 
   try {
-    const decoded = await new Promise((resolve, reject) => 
-      jwt.verify(refreshToken, SECRET_KEY, async function(err, decoded) { if (err) reject(err); resolve(decoded) }));
-    
-    const { id, refresh } = decoded as { id: number, refresh?: boolean };
+    const decoded = await new Promise((resolve, reject) =>
+      jwt.verify(refreshToken, SECRET_KEY, async function (err, decoded) {
+        if (err) reject(err);
+        resolve(decoded);
+      })
+    );
+
+    const { id, refresh } = decoded as { id: number; refresh?: boolean };
 
     if (!refresh || !id) return ERROR_RESPONSES.INVALID_SESSION;
 
     const userRepo = await db.getRepository(User);
     const user = await userRepo.findOneOrFail(id);
-    if (user.refreshToken !== refreshToken) return ERROR_RESPONSES.INVALID_SESSION;
+    if (user.refreshToken !== refreshToken)
+      return ERROR_RESPONSES.INVALID_SESSION;
 
     const accessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user);
@@ -140,28 +171,29 @@ module.exports.refresh = async (event: APIGatewayProxyEvent, context: Context) =
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
-        'Set-Cookie': cookie.serialize('refreshToken', newRefreshToken, {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": true,
+        "Set-Cookie": cookie.serialize("refreshToken", newRefreshToken, {
           httpOnly: true,
           maxAge: 60 * 60 * 24 * 7, // 7 days
           sameSite: true,
-          path: '/',
+          path: "/",
         }),
       },
       body: JSON.stringify({ accessToken }),
-    }
+    };
   } catch (e) {
     console.error(e);
     return ERROR_RESPONSES.INVALID_TOKEN;
   }
-}
+};
 
 module.exports.me = async (event: APIGatewayProxyEvent, context: Context) => {
   context.callbackWaitsForEmptyEventLoop = false;
 
-  const authToken = event.headers['Authorization'];
-  if (!authToken || !authToken.startsWith('Bearer')) return ERROR_RESPONSES.INVALID_TOKEN;
+  const authToken = event.headers["Authorization"];
+  if (!authToken || !authToken.startsWith("Bearer"))
+    return ERROR_RESPONSES.INVALID_TOKEN;
 
   const accessToken = authToken.slice(7).trim();
 
@@ -169,10 +201,14 @@ module.exports.me = async (event: APIGatewayProxyEvent, context: Context) => {
   let db: Connection = await database.getConnection();
 
   try {
-    const decoded = await new Promise((resolve, reject) => 
-      jwt.verify(accessToken, SECRET_KEY, async function(err, decoded) { if (err) reject(err); resolve(decoded) }));
+    const decoded = await new Promise((resolve, reject) =>
+      jwt.verify(accessToken, SECRET_KEY, async function (err, decoded) {
+        if (err) reject(err);
+        resolve(decoded);
+      })
+    );
 
-    const { id, access } = decoded as { id: number, access?: boolean };
+    const { id, access } = decoded as { id: number; access?: boolean };
 
     if (!access || !id) return ERROR_RESPONSES.INVALID_TOKEN;
 
@@ -184,17 +220,20 @@ module.exports.me = async (event: APIGatewayProxyEvent, context: Context) => {
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": true,
       },
-      body: JSON.stringify({user}),
-    }
+      body: JSON.stringify({ user }),
+    };
   } catch (e) {
     return ERROR_RESPONSES.INVALID_TOKEN;
   }
-}
+};
 
-module.exports.logout = async (event: APIGatewayProxyEvent, context: Context) => {
+module.exports.logout = async (
+  event: APIGatewayProxyEvent,
+  context: Context
+) => {
   context.callbackWaitsForEmptyEventLoop = false;
 
   if (!event.headers.cookie) return ERROR_RESPONSES.INVALID_SESSION;
@@ -205,36 +244,39 @@ module.exports.logout = async (event: APIGatewayProxyEvent, context: Context) =>
 
   if (!refreshToken) return ERROR_RESPONSES.INVALID_SESSION;
 
-
   const database = new Database();
   let db: Connection = await database.getConnection();
 
   try {
-    const decoded = await new Promise((resolve, reject) => 
-      jwt.verify(refreshToken, SECRET_KEY, async function(err, decoded) { if (err) reject(err); resolve(decoded) }));
-    
-    const { id, refresh } = decoded as { id: number, refresh?: boolean };
+    const decoded = await new Promise((resolve, reject) =>
+      jwt.verify(refreshToken, SECRET_KEY, async function (err, decoded) {
+        if (err) reject(err);
+        resolve(decoded);
+      })
+    );
+
+    const { id, refresh } = decoded as { id: number; refresh?: boolean };
 
     if (!refresh || !id) return ERROR_RESPONSES.INVALID_SESSION;
-  
+
     const userRepo = await db.getRepository(User);
 
-    await userRepo.update(id, { refreshToken: '' });
+    await userRepo.update(id, { refreshToken: "" });
 
     return {
       statusCode: 200,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
-        'Set-Cookie': cookie.serialize('refreshToken', '', {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": true,
+        "Set-Cookie": cookie.serialize("refreshToken", "", {
           httpOnly: true,
           expires: new Date(), // expire immediately
           sameSite: true,
-          path: '/',
+          path: "/",
         }),
       },
-    }
+    };
   } catch (e) {
     return ERROR_RESPONSES.INVALID_TOKEN;
   }
-}
+};

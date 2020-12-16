@@ -1,11 +1,12 @@
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 import { NextApiRequest, NextApiResponse } from "next";
 
 export default async (req: NextApiRequest, res: NextApiResponse) => {
   const { method, headers, body } = req;
-  console.log("/api/refresh (req.headers.cookie)", +!!headers?.cookie);
+  console.log("/api/signup (headers)");
+  console.log("/api/signup (body)", body);
 
-  if (method !== "GET") {
+  if (method !== "POST") {
     res.status(404).end();
   }
 
@@ -13,12 +14,8 @@ export default async (req: NextApiRequest, res: NextApiResponse) => {
     const {
       data,
       headers: returnedHeaders,
-    } = await axios.get("http://localhost:8080/dev/refresh", { headers });
-    console.log(
-      "/api/refresh (returnedHeaders.cookie)",
-      returnedHeaders?.cookie
-    );
-    console.log("/api/refresh (data)", data);
+    } = await axios.post("http://localhost:8080/dev/signup", body, { headers });
+    console.log("/api/signup (returnedHeaders)");
     Object.keys(returnedHeaders).forEach((key) =>
       res.setHeader(key, returnedHeaders[key])
     );
